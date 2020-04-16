@@ -31,7 +31,10 @@ template <typename T> void MessageQueue<T>::send(T &&msg) {
   _messages.push_back(std::move(msg));
   _cond.notify_one();
 }
-TrafficLight::TrafficLight() { _currentPhase = TrafficLightPhase::red; }
+TrafficLight::TrafficLight() {
+  _currentPhase = TrafficLightPhase::red;
+  _msgsQue = std::make_shared<MessageQueue<TrafficLightPhase>>();
+}
 
 void TrafficLight::waitForGreen() {
   // FP.5b : add the implementation of the method waitForGreen, in which an
@@ -39,7 +42,7 @@ void TrafficLight::waitForGreen() {
   // message queue. Once it receives TrafficLightPhase::green, the method
   // returns.
   while (true) {
-    if (_msgsQue.receive() == TrafficLightPhase::green) {
+    if (_msgsQue->receive() == TrafficLightPhase::green) {
       break;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -57,32 +60,32 @@ void TrafficLight::simulate() {
 
 // virtual function which is executed in a thread
 void TrafficLight::cycleThroughPhases() {
-  // FP.2a : Implement the function with an infinite loop that measures the
-  // time between two loop cycles and toggles the current phase of the traffic
-  // light between red and green and sends an update method to the message
-  // queue using move semantics. The cycle duration should be a random value
-  // between 4 and 6 seconds. Also, the while-loop should use
-  // std::this_thread::sleep_for to wait 1ms between two cycles.
-  std::random_device rd; // only used once to initialise (seed) engine
-  std::mt19937 rng(
-      rd()); // random-number engine used (Mersenne-Twister in this case)
-  std::uniform_int_distribution<int> uni(4000, 6000); // guaranteed unbiased
-  auto lastLoop = std::chrono::system_clock::now();
+  // FP.2a : Implement the function with an infinite loop that measures the time
+  // between two loop cycles and toggles the current phase of the traffic light
+  // between red and green and sends an update method to the message queue using
+  // move semantics. The cycle duration should be a random value between 4 and 6
+  // seconds. Also, the while-loop should use std::this_thread::sleep_for to
+  // wait 1ms between two cycles.
+  std::chrono::time_point<std::chrono::system_clock> lastUpdate;
+  // std::default_random_engine generator;
+  std::random_device rd;
+  std::mt19937 generator(rd());
+  std::uniform_int_distribution<long> distribution(4000, 6000);
+  long cycleDuration = distribution(generator);
+  lastUpdate = std::chrono::system_clock::now();
   while (true) {
-    auto timeNow = std::chrono::system_clock::now();
-    if ((timeNow - lastLoop) >= std::chrono::milliseconds(uni(rng))) {
-      lastLoop = timeNow;
-      //   std::cout << "Yes " << elapsed_seconds.count();
-      if (_currentPhase == TrafficLightPhase::green) {
-        _currentPhase = TrafficLightPhase::red;
-
-      } else {
-        // std::cout << "No " << elapsed_seconds.count();
-        _currentPhase = TrafficLightPhase::green;
-      }
-      _msgsQue.send(std::move(_currentPhase));
-    }
-
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    auto tmpSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now() - lastUpdate);
+    int durationSinceSwitched = tmpSeconds.count();
+
+    if (durationSinceSwitched >= cycleDuration) {
+      _currentPhase = _currentPhase == red ? green : red;
+
+      _msgsQue->send(std::move(_currentPhase));
+
+      lastUpdate = std::chrono::system_clock::now();
+      cycleDuration = distribution(generator);
+    }
   }
 }
