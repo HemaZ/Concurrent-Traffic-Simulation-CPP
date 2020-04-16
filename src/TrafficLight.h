@@ -18,7 +18,7 @@ class Vehicle;
 
 template <class T> class MessageQueue {
 public:
-  void send(T &&phase);
+  void send(T &&msg);
   T receive();
 
 private:
@@ -39,7 +39,6 @@ class TrafficLight : public TrafficObject {
 public:
   // constructor / desctructor
   TrafficLight();
-  ~TrafficLight();
   // getters / setters
   TrafficLightPhase getCurrentPhase();
   // typical behaviour methods
